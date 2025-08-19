@@ -497,40 +497,64 @@ int *front;					/* return: front or back */
  * process must be added to one of the scheduling queues to decide where to
  * insert it.  As a side-effect the process' priority may be updated.  
  */
-  static struct proc *prev_ptr = NIL_PROC;	/* previous without time */
-  int time_left = (rp->p_ticks_left > 0);	/* quantum fully consumed */
-  int penalty = 0;				/* change in priority */
+#if (SCHEDULING_POLICY == SCHED_PRIO)
+    /* For Priority scheduling, the queue is determined by the process's priority. */
+    *queue = rp->p_priority;
 
-  /* Check whether the process has time left. Otherwise give a new quantum 
-   * and possibly raise the priority.  Processes using multiple quantums 
-   * in a row get a lower priority to catch infinite loops in high priority
-   * processes (system servers and drivers). 
-   */
-  if ( ! time_left) {				/* quantum consumed ? */
-      rp->p_ticks_left = rp->p_quantum_size; 	/* give new quantum */
-      if (prev_ptr == rp) penalty ++;		/* catch infinite loops */
-      else penalty --; 				/* give slow way back */
-      prev_ptr = rp;				/* store ptr for next */
-  }
+    if (rp->p_ticks_left > 0) {
+        *front = 1; /* Not expired, goes to front */
+    } else {
+        rp->p_ticks_left = rp->p_quantum_size;
+        *front = 0; /* Expired, goes to back */
+    }
+#elif (SCHEDULING_POLICY == SCHED_RR)
+    int time_left = (rp->p_ticks_left > 0);
 
-  /* Determine the new priority of this process. The bounds are determined
-   * by IDLE's queue and the maximum priority of this process. Kernel task 
-   * and the idle process are never changed in priority.
-   */
-  if (penalty != 0 && ! iskernelp(rp)) {
-      rp->p_priority += penalty;		/* update with penalty */
-      if (rp->p_priority < rp->p_max_priority)  /* check upper bound */ 
-          rp->p_priority=rp->p_max_priority;
-      else if (rp->p_priority > IDLE_Q-1)   	/* check lower bound */
-      	  rp->p_priority = IDLE_Q-1;
-  }
+    if (!(priv(rp)->s_flags & SYS_PROC)) {
+        rp->p_priority = MAX_USER_Q + 3;
+    }
 
-  /* If there is time left, the process is added to the front of its queue, 
-   * so that it can immediately run. The queue to use simply is always the
-   * process' current priority. 
-   */
-  *queue = rp->p_priority;
-  *front = time_left;
+    if (!time_left) {
+        rp->p_ticks_left = rp->p_quantum_size;
+    }
+
+    *queue = rp->p_priority;
+    *front = time_left;
+#else
+    static struct proc *prev_ptr = NIL_PROC;	/* previous without time */
+    int time_left = (rp->p_ticks_left > 0);	/* quantum fully consumed */
+    int penalty = 0;				/* change in priority */
+
+    /* Check whether the process has time left. Otherwise give a new quantum 
+    * and possibly raise the priority.  Processes using multiple quantums 
+    * in a row get a lower priority to catch infinite loops in high priority
+    * processes (system servers and drivers). 
+    */
+    if (!time_left) {				/* quantum consumed ? */
+        rp->p_ticks_left = rp->p_quantum_size; 	/* give new quantum */
+        if (prev_ptr == rp) penalty ++;		/* catch infinite loops */
+        else penalty --; 				/* give slow way back */
+        prev_ptr = rp;				/* store ptr for next */
+    }
+
+    /* Determine the new priority of this process. The bounds are determined
+    * by IDLE's queue and the maximum priority of this process. Kernel task 
+    * and the idle process are never changed in priority.
+    */
+    if (penalty != 0 && ! iskernelp(rp)) {
+        rp->p_priority += penalty;		/* update with penalty */
+        if (rp->p_priority < rp->p_max_priority)  /* check upper bound */ 
+            rp->p_priority=rp->p_max_priority;
+        else if (rp->p_priority > IDLE_Q-1)   	/* check lower bound */
+            rp->p_priority = IDLE_Q-1;
+    }
+    /* If there is time left, the process is added to the front of its queue, 
+    * so that it can immediately run. The queue to use simply is always the
+    * process' current priority. 
+    */
+    *queue = rp->p_priority;
+    *front = time_left;
+#endif
 }
 
 /*===========================================================================*

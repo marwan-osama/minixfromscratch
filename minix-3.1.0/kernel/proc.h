@@ -107,4 +107,10 @@ EXTERN struct proc *pproc_addr[NR_TASKS + NR_PROCS];
 EXTERN struct proc *rdy_head[NR_SCHED_QUEUES]; /* ptrs to ready list headers */
 EXTERN struct proc *rdy_tail[NR_SCHED_QUEUES]; /* ptrs to ready list tails */
 
+#define SCHED_DEFAULT 0  /* The original MINIX scheduler */
+#define SCHED_RR      1  /* Round Robin scheduler */
+#define SCHED_PRIO    2  /* Priority scheduler */
+
+#define SCHEDULING_POLICY SCHED_RR
+
 #endif /* PROC_H */
